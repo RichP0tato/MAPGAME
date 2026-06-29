@@ -1,0 +1,52 @@
+{
+  "_README": "PLACEHOLDER ship catalog. Replace the entries below with your spreadsheet's ship data. Each ship: id, name, class, faction, strength (combat value used to total a fleet's power), crew. Fleets reference these by id with a count. To swap in real data, keep the same field names and edit this file, then restart the server.",
+  "ships": [
+    { "id": "paris_frigate",     "name": "Paris-class Frigate",        "class": "Frigate",      "faction": "UNSC", "strength": 3,  "crew": 320 },
+    { "id": "stalwart_frigate",  "name": "Stalwart-class Frigate",     "class": "Frigate",      "faction": "UNSC", "strength": 3,  "crew": 300 },
+    { "id": "charon_frigate",    "name": "Charon-class Frigate",       "class": "Frigate",      "faction": "UNSC", "strength": 4,  "crew": 340 },
+    { "id": "halberd_destroyer", "name": "Halberd-class Destroyer",    "class": "Destroyer",    "faction": "UNSC", "strength": 6,  "crew": 400 },
+    { "id": "marathon_cruiser",  "name": "Marathon-class Cruiser",     "class": "Cruiser",      "faction": "UNSC", "strength": 12, "crew": 1200 },
+    { "id": "halcyon_cruiser",   "name": "Halcyon-class Cruiser",      "class": "Cruiser",      "faction": "UNSC", "strength": 10, "crew": 1000 },
+    { "id": "autumn_refit",      "name": "Halcyon (Refit) Cruiser",    "class": "Cruiser",      "faction": "UNSC", "strength": 16, "crew": 1100 },
+    { "id": "phoenix_colony",    "name": "Phoenix-class Support",      "class": "Support",      "faction": "UNSC", "strength": 5,  "crew": 2000 },
+    { "id": "punic_supercarrier","name": "Punic-class Supercarrier",   "class": "Carrier",      "faction": "UNSC", "strength": 28, "crew": 4000 },
+    { "id": "orbital_mac",       "name": "Orbital Defense Platform",   "class": "Station",      "faction": "UNSC", "strength": 20, "crew": 800 },
+    { "id": "prowler",           "name": "Prowler (ONI)",              "class": "Stealth",      "faction": "UNSC", "strength": 4,  "crew": 130 },
+
+    { "id": "seraph",            "name": "Seraph Fighter Wing",        "class": "Fighter",      "faction": "Covenant", "strength": 2,  "crew": 1 },
+    { "id": "ccs_battlecruiser", "name": "CCS-class Battlecruiser",    "class": "Battlecruiser","faction": "Covenant", "strength": 18, "crew": 3000 },
+    { "id": "rcs_carrier",       "name": "RCS-class Armored Cruiser",  "class": "Cruiser",      "faction": "Covenant", "strength": 14, "crew": 2500 },
+    { "id": "ket_battlecruiser", "name": "Ket-pattern Battlecruiser",  "class": "Battlecruiser","faction": "Covenant", "strength": 18, "crew": 3000 },
+    { "id": "cso_supercarrier",  "name": "CSO-class Supercarrier",     "class": "Carrier",      "faction": "Covenant", "strength": 40, "crew": 10000 },
+    { "id": "ket_cruiser",       "name": "SDV-class Heavy Corvette",   "class": "Corvette",     "faction": "Covenant", "strength": 8,  "crew": 1500 }
+  ],
+  "fleets": [
+    {
+      "id": "fleet_home",
+      "name": "Home Fleet",
+      "faction": "UNSC",
+      "owner": "admin",
+      "system": "sol",
+      "composition": { "punic_supercarrier": 1, "marathon_cruiser": 4, "halberd_destroyer": 6, "paris_frigate": 12, "orbital_mac": 6 },
+      "notes": "Primary defensive fleet stationed at Sol."
+    },
+    {
+      "id": "fleet_epsilon",
+      "name": "Battlegroup Epsilon",
+      "faction": "UNSC",
+      "owner": "admin",
+      "system": "epsilon_eridani",
+      "composition": { "autumn_refit": 1, "halcyon_cruiser": 2, "halberd_destroyer": 4, "stalwart_frigate": 8 },
+      "notes": "Reach defense flotilla."
+    },
+    {
+      "id": "fleet_particle",
+      "name": "Fleet of Particular Justice",
+      "faction": "Covenant",
+      "owner": "admin",
+      "system": "high_charity",
+      "composition": { "cso_supercarrier": 1, "ccs_battlecruiser": 6, "rcs_carrier": 3, "ket_cruiser": 8 },
+      "notes": "Covenant battle fleet."
+    }
+  ]
+}
