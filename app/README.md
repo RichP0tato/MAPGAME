@@ -116,6 +116,32 @@ Each system has `"grid": "H18"` and pixel `"coords": [x, y]` (cell = 100px,
 
 ---
 
+## Economy
+
+Each faction earns **income** from the systems it controls. Every system carries a
+share of its sector's metal / mineral / uranium (the sector total split across its
+systems), so as worlds change hands, income redistributes automatically.
+
+- The **economy panel** (top-center of the map) shows each faction's treasury and
+  per-turn income. Players see only their own faction; admins/spectators see all.
+- **Collect Income** (admin — economy panel button, or the admin console) adds every
+  faction's current income to its treasury. This is your **end-of-turn payout**.
+- **Adjust / Set** (admin console → Economy) lets you add, subtract, or set a
+  faction's stockpile directly — e.g. to deduct the cost when a player builds ships.
+
+Treasuries persist in the database (on your volume), so they survive redeploys.
+
+### Note on sectors
+
+Right now most systems are grouped into three sectors (Solar Core, Outremer, Coral
+Edge) from the original data merge, so only those sectors' resources currently flow
+into the economy. The other sectors (Laconia, Cygnidia, Vishnu, Andalus, etc.) exist
+with their totals but aren't yet assigned to specific systems. To make all 14 sectors
+economically active, set each system's `"sector"` field in `master.json` to its real
+sector. (Happy to wire this up if you send the system→sector assignments.)
+
+---
+
 ## Fleets
 
 Fleets are mobile faction assets placed at systems, shown as faction-colored

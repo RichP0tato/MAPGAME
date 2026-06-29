@@ -19,6 +19,22 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-in-production';
 const MASTER = JSON.parse(readFileSync(join(__dirname, 'data', 'master.json'), 'utf8'));
 const SYS_BY_ID = Object.fromEntries(MASTER.systems.map(s => [s.id, s]));
 
+// ---------- economy: give each system a share of its sector's resources ----------
+const SECTOR_TOTALS = Object.fromEntries((MASTER.sectors||[]).map(r => [r[0], { metal:r[2], mineral:r[3], uranium:r[4] }]));
+(function computeShares(){
+  const counts = {};
+  for (const s of MASTER.systems) if (s.sector) counts[s.sector] = (counts[s.sector]||0)+1;
+  for (const s of MASTER.systems) {
+    const tot = SECTOR_TOTALS[s.sector];
+    const n = counts[s.sector] || 1;
+    s.resShare = tot ? {
+      metal: +(tot.metal/n).toFixed(2),
+      mineral: +(tot.mineral/n).toFixed(2),
+      uranium: +(tot.uranium/n).toFixed(3)
+    } : { metal:0, mineral:0, uranium:0 };
+  }
+})();
+
 // ---------- load ship catalog + seed fleets ----------
 const SHIPDATA = JSON.parse(readFileSync(join(__dirname, 'data', 'ships.json'), 'utf8'));
 const SHIP_BY_ID = Object.fromEntries((SHIPDATA.ships||[]).map(s => [s.id, s]));
@@ -32,7 +48,7 @@ function fleetShipCount(comp){
 }
 
 // ---------- database ----------
-const db = new Database(join(process.env.DB_DIR || join(__dirname, 'data'), 'game.db'));
+const db = new Database(join(__dirname, 'data', 'game.db'));
 db.pragma('journal_mode = WAL');
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -68,6 +84,14 @@ CREATE TABLE IF NOT EXISTS fleets (
   system_id TEXT,        -- the system the fleet currently occupies
   composition TEXT,      -- JSON: { shipId: count }
   notes TEXT,
+  updated_at INTEGER
+);
+-- faction treasuries: accumulated resource stockpiles
+CREATE TABLE IF NOT EXISTS treasury (
+  faction TEXT PRIMARY KEY,
+  metal REAL DEFAULT 0,
+  mineral REAL DEFAULT 0,
+  uranium REAL DEFAULT 0,
   updated_at INTEGER
 );
 `);
@@ -130,6 +154,32 @@ function visibleSystems(user) {
   const faction = user ? user.faction : 'UNSC';
   const disc = discoveredIds(faction);
   return { systems: all.filter(s => disc.has(s.id)), fog:true };
+}
+
+// ---- economy helpers ----
+const FACTIONS = ['UNSC','Covenant'];
+function factionIncome(faction){
+  // sum resource shares of every system this faction controls (live state)
+  const inc = { metal:0, mineral:0, uranium:0 };
+  for (const s of MASTER.systems){
+    const st = currentState(s);
+    if (st.faction === faction && !st.glassed && s.resShare){
+      inc.metal += s.resShare.metal;
+      inc.mineral += s.resShare.mineral;
+      inc.uranium += s.resShare.uranium;
+    }
+  }
+  inc.metal = +inc.metal.toFixed(1); inc.mineral = +inc.mineral.toFixed(1); inc.uranium = +inc.uranium.toFixed(2);
+  return inc;
+}
+function getTreasury(faction){
+  let t = db.prepare('SELECT * FROM treasury WHERE faction=?').get(faction);
+  if (!t){ db.prepare('INSERT INTO treasury (faction,metal,mineral,uranium,updated_at) VALUES (?,0,0,0,?)').run(faction, Date.now()); t = { faction, metal:0, mineral:0, uranium:0 }; }
+  return { faction, metal:t.metal, mineral:t.mineral, uranium:t.uranium };
+}
+function economySnapshot(){
+  return FACTIONS.map(f => ({ faction:f, income:factionIncome(f), treasury:getTreasury(f),
+    systems: MASTER.systems.map(currentState).filter(s=>s.faction===f && !s.glassed).length }));
 }
 
 // ---- fleet helpers ----
@@ -219,12 +269,19 @@ app.get('/api/map', (req,res)=>{
   const routes = MASTER.routes
     .map(r=>({ ...r, systems:r.systems.filter(id=>visIds.has(id)) }))
     .filter(r=>r.systems.length>=2);
+  // economy: players see their own faction's economy; admin/spectator see all
+  let economy;
+  if (u && (u.role==='admin' || u.faction==='Spectator')) economy = economySnapshot();
+  else if (u && FACTIONS.includes(u.faction)) economy = [{ faction:u.faction, income:factionIncome(u.faction), treasury:getTreasury(u.faction), systems: MASTER.systems.map(currentState).filter(s=>s.faction===u.faction && !s.glassed).length }];
+  else economy = [];
+
   res.json({
     grid: MASTER.grid,
     systems, routes,
     sectors: MASTER.sectors, grand: MASTER.grand, sectorRegions: MASTER.sectorRegions,
     fleets: visibleFleets(u),
     ships: SHIPDATA.ships,
+    economy,
     fog, total: MASTER.systems.length,
     me: u ? { username:u.username, faction:u.faction, role:u.role } : null
   });
@@ -309,6 +366,32 @@ app.post('/api/admin/fleet/move', requireAdmin, (req,res)=>{
 app.post('/api/admin/fleet/delete', requireAdmin, (req,res)=>{
   db.prepare('DELETE FROM fleets WHERE id=?').run(req.body?.id);
   res.json({ ok:true });
+});
+
+// ---- economy (admin) ----
+app.get('/api/admin/economy', requireAdmin, (req,res)=>{
+  res.json({ economy: economySnapshot() });
+});
+// collect income: add each faction's current income to its treasury (the "end turn" payout)
+app.post('/api/admin/economy/collect', requireAdmin, (req,res)=>{
+  const out=[];
+  for (const f of FACTIONS){
+    const inc = factionIncome(f); const t = getTreasury(f);
+    const nm = +(t.metal+inc.metal).toFixed(1), nmin = +(t.mineral+inc.mineral).toFixed(1), nu = +(t.uranium+inc.uranium).toFixed(2);
+    db.prepare('UPDATE treasury SET metal=?,mineral=?,uranium=?,updated_at=? WHERE faction=?').run(nm,nmin,nu,Date.now(),f);
+    out.push({ faction:f, added:inc, treasury:{ faction:f, metal:nm, mineral:nmin, uranium:nu } });
+  }
+  res.json({ ok:true, result:out });
+});
+// adjust/spend: set or delta a faction's treasury directly
+app.post('/api/admin/economy/adjust', requireAdmin, (req,res)=>{
+  const { faction, metal, mineral, uranium, mode } = req.body||{}; // mode: 'set' | 'delta'
+  if(!FACTIONS.includes(faction)) return res.status(400).json({error:'bad faction'});
+  const t = getTreasury(faction);
+  const apply = (cur,val)=> val==null ? cur : (mode==='delta' ? +(cur+Number(val)).toFixed(2) : Number(val));
+  const nm=apply(t.metal,metal), nmin=apply(t.mineral,mineral), nu=apply(t.uranium,uranium);
+  db.prepare('UPDATE treasury SET metal=?,mineral=?,uranium=?,updated_at=? WHERE faction=?').run(nm,nmin,nu,Date.now(),faction);
+  res.json({ ok:true, treasury:{ faction, metal:nm, mineral:nmin, uranium:nu } });
 });
 
 app.listen(PORT, ()=>console.log(`WAYPOINT server running on http://localhost:${PORT}`));

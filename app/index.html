@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>WAYPOINT // UNSC Stellar Registry</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap"/>
+<style>
+:root{
+  --bg:#04070d;--panel:rgba(8,16,28,.86);--edge:rgba(96,182,255,.22);--edge-b:rgba(96,182,255,.55);
+  --unsc:#34c6ff;--covenant:#b07cff;--contested:#ffb13d;--glassed:#7c8694;--forerunner:#7CFF6B;
+  --ink:#dbe9ff;--dim:#7e93b0;--amber:#ffb13d;
+  --mono:'JetBrains Mono',ui-monospace,monospace;--disp:'Orbitron',var(--mono);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--mono);overflow:hidden}
+#map{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 88%,#0a1424 0%,#05080f 55%,#03050a 100%)}
+.leaflet-container{background:transparent;font-family:var(--mono);outline:none}
+.leaflet-control-zoom{display:none}
+button{font-family:var(--mono);cursor:pointer}
+
+/* gate / login */
+#gate{position:absolute;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 40%,#0a1626,#04070d 70%)}
+.card{width:340px;background:var(--panel);border:1px solid var(--edge-b);border-radius:6px;padding:26px 24px;
+  box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.card h1{font-family:var(--disp);font-weight:900;letter-spacing:.3em;font-size:20px;color:var(--unsc);
+  margin:0 0 4px;text-shadow:0 0 18px rgba(52,198,255,.5)}
+.card .tag{font-size:10px;letter-spacing:.28em;color:var(--dim);text-transform:uppercase;margin-bottom:20px}
+.card label{font-size:10px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase;display:block;margin:12px 0 5px}
+.card input,.card select{width:100%;background:rgba(2,8,16,.7);border:1px solid var(--edge);color:var(--ink);
+  font-family:var(--mono);font-size:13px;padding:9px 11px;border-radius:4px;outline:none}
+.card input:focus,.card select:focus{border-color:var(--edge-b)}
+.card .btn{width:100%;margin-top:18px;padding:11px;background:var(--unsc);color:#04101c;border:none;
+  border-radius:4px;font-weight:700;letter-spacing:.12em}
+.card .btn.alt{background:transparent;color:var(--dim);border:1px solid var(--edge);margin-top:9px;font-weight:400}
+.card .err{color:#ff7a6b;font-size:11px;margin-top:10px;min-height:14px}
+.tabs{display:flex;gap:8px;margin-bottom:6px}
+.tabs .t{flex:1;text-align:center;font-size:11px;letter-spacing:.14em;padding:7px;border-radius:4px;
+  border:1px solid var(--edge);color:var(--dim)}
+.tabs .t.on{border-color:var(--edge-b);color:var(--ink);background:rgba(52,198,255,.08)}
+
+/* hud */
+.hud-corner{position:absolute;width:54px;height:54px;border:1px solid var(--edge-b);z-index:600;pointer-events:none;opacity:.55}
+.hud-corner.tl{top:10px;left:10px;border-right:none;border-bottom:none}
+.hud-corner.tr{top:10px;right:10px;border-left:none;border-bottom:none}
+.hud-corner.bl{bottom:10px;left:10px;border-right:none;border-top:none}
+.hud-corner.br{bottom:10px;right:10px;border-left:none;border-top:none}
+
+#titlebar{position:absolute;top:0;left:0;right:0;z-index:550;display:flex;align-items:center;gap:14px;padding:14px 22px;pointer-events:none}
+#titlebar .mark{font-family:var(--disp);font-weight:900;letter-spacing:.32em;font-size:15px;color:var(--unsc);text-shadow:0 0 18px rgba(52,198,255,.55)}
+#titlebar .sub{font-size:10px;letter-spacing:.34em;color:var(--dim);text-transform:uppercase}
+#titlebar .right{margin-left:auto;display:flex;gap:10px;align-items:center;pointer-events:auto}
+.chip{font-size:10px;letter-spacing:.2em;padding:5px 12px;border-radius:2px;border:1px solid var(--edge);color:var(--dim);text-transform:uppercase}
+.chip.fac{border-color:var(--accent);color:var(--accent)}
+.chip.btn{cursor:pointer}.chip.btn:hover{color:var(--ink);border-color:var(--edge-b)}
+
+#side{position:absolute;top:64px;left:14px;width:244px;z-index:540;background:var(--panel);backdrop-filter:blur(14px);
+  border:1px solid var(--edge);border-radius:4px;display:flex;flex-direction:column;max-height:calc(100% - 150px)}
+#side .head{padding:11px 14px 9px;border-bottom:1px solid var(--edge);font-family:var(--disp);font-size:11px;letter-spacing:.26em;color:var(--dim)}
+.search{margin:10px 12px 4px;position:relative}
+.search input{width:100%;background:rgba(2,8,16,.7);border:1px solid var(--edge);color:var(--ink);font-family:var(--mono);font-size:12px;padding:8px 10px 8px 28px;border-radius:3px;outline:none}
+.search svg{position:absolute;left:8px;top:8px;width:14px;height:14px;opacity:.5}
+.toggles{padding:8px 12px 4px;display:grid;gap:5px}
+.tg{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:11px;letter-spacing:.06em;padding:5px 7px;border-radius:3px;user-select:none}
+.tg:hover{background:rgba(52,198,255,.07)}
+.tg .sw{width:11px;height:11px;border-radius:2px;flex:0 0 auto;box-shadow:0 0 8px currentColor}
+.tg .sw.line{border-radius:0;height:3px;width:14px;box-shadow:none}
+.tg .ct{margin-left:auto;color:var(--dim);font-size:10px}
+.tg.off{opacity:.34}
+.list{overflow-y:auto;padding:4px 6px 10px;margin-top:4px}
+.list::-webkit-scrollbar{width:7px}.list::-webkit-scrollbar-thumb{background:rgba(52,198,255,.22);border-radius:4px}
+.row{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:3px;cursor:pointer;font-size:12px}
+.row:hover{background:rgba(52,198,255,.08)}
+.row .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 6px currentColor}
+.row .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .tag{margin-left:auto;font-size:9px;color:var(--dim);letter-spacing:.1em}
+
+#detail{position:absolute;top:64px;right:14px;width:312px;z-index:560;background:var(--panel);backdrop-filter:blur(16px);
+  border:1px solid var(--edge-b);border-radius:4px;transform:translateX(360px);transition:transform .34s cubic-bezier(.4,1.2,.4,1);
+  max-height:calc(100% - 150px);overflow:hidden;display:flex;flex-direction:column}
+#detail.open{transform:translateX(0)}
+#detail .dhead{padding:15px 16px 13px;position:relative;border-bottom:1px solid var(--edge)}
+#detail .dhead::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent,var(--unsc));box-shadow:0 0 14px var(--accent,var(--unsc))}
+#detail .nm{font-family:var(--disp);font-weight:700;font-size:18px;letter-spacing:.04em;line-height:1.15}
+#detail .gridref{font-size:10px;letter-spacing:.18em;color:var(--dim);margin-top:5px}
+.badge{display:inline-block;margin-top:10px;font-size:10px;letter-spacing:.2em;padding:4px 10px;border-radius:2px;text-transform:uppercase;
+  border:1px solid var(--accent,var(--unsc));color:var(--accent,var(--unsc));background:color-mix(in srgb,var(--accent,var(--unsc)) 12%,transparent)}
+.dbody{overflow-y:auto;padding:14px 16px 18px}
+.dbody::-webkit-scrollbar{width:7px}.dbody::-webkit-scrollbar-thumb{background:rgba(52,198,255,.22);border-radius:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px;margin-bottom:14px}
+.kv{display:flex;flex-direction:column;gap:3px}.kv .k{font-size:9px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase}.kv .v{font-size:12.5px}
+.section-t{font-size:9px;letter-spacing:.24em;color:var(--dim);text-transform:uppercase;margin:6px 0 8px;display:flex;align-items:center;gap:8px}
+.section-t::after{content:"";flex:1;height:1px;background:var(--edge)}
+.bar{height:7px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;margin-top:4px}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--accent,var(--unsc)),color-mix(in srgb,var(--accent,var(--unsc)) 40%,#fff));border-radius:4px;box-shadow:0 0 10px var(--accent,var(--unsc))}
+.notes{font-size:12px;line-height:1.55;color:#b9cbe6;background:rgba(2,8,16,.5);border-left:2px solid var(--accent,var(--unsc));padding:9px 11px;border-radius:0 3px 3px 0;margin-top:4px}
+.dclose{position:absolute;top:13px;right:13px;width:24px;height:24px;border:1px solid var(--edge);background:rgba(2,8,16,.6);color:var(--dim);border-radius:3px;cursor:pointer;font-size:13px}
+.dclose:hover{color:var(--ink)}
+.admin-edit{margin-top:12px;border-top:1px solid var(--edge);padding-top:12px}
+.admin-edit label{font-size:9px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase;display:block;margin:8px 0 4px}
+.admin-edit select,.admin-edit input{width:100%;background:rgba(2,8,16,.7);border:1px solid var(--edge);color:var(--ink);font-family:var(--mono);font-size:12px;padding:6px 8px;border-radius:3px}
+.admin-edit .save{margin-top:10px;width:100%;padding:8px;background:var(--amber);color:#1a1200;border:none;border-radius:3px;font-weight:700;letter-spacing:.1em}
+
+#stats{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:540;display:flex;gap:2px;background:var(--panel);backdrop-filter:blur(12px);border:1px solid var(--edge);border-radius:4px;padding:4px}
+.stat{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:3px}
+.stat .dot{width:9px;height:9px;border-radius:50%;box-shadow:0 0 8px currentColor}
+.stat .n{font-family:var(--disp);font-weight:700;font-size:15px}
+.stat .l{font-size:9px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase}
+
+.sys-label{font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:#cfe2ff;text-shadow:0 0 6px #000,0 0 10px #000;white-space:nowrap;pointer-events:none}
+.glassed-label{color:#90a0b4;text-decoration:line-through}
+.grid-letter{font-family:var(--disp);font-weight:700;color:rgba(150,170,200,.5);font-size:13px;pointer-events:none}
+.sector-label{font-family:var(--disp);font-weight:700;letter-spacing:.08em;pointer-events:none;text-shadow:0 0 8px #000}
+.fleet-marker{position:relative;cursor:pointer;filter:drop-shadow(0 0 5px var(--fc))}
+.fleet-marker:hover{filter:drop-shadow(0 0 9px var(--fc))}
+.fleet-str{position:absolute;top:-7px;right:-9px;font-size:9px;font-weight:700;color:#04070d;background:var(--fc);border-radius:6px;padding:0 4px;line-height:13px;box-shadow:0 0 6px var(--fc)}
+
+#fogTag{position:absolute;bottom:16px;left:16px;z-index:540;font-size:10px;letter-spacing:.18em;color:var(--amber);border:1px solid rgba(255,177,61,.3);padding:5px 10px;border-radius:3px;background:rgba(255,177,61,.06)}
+#econ{position:absolute;top:64px;left:50%;transform:translateX(-50%);z-index:530;display:flex;gap:8px;pointer-events:none}
+.econ-card{background:var(--panel);backdrop-filter:blur(12px);border:1px solid var(--accent,var(--edge));border-radius:4px;padding:8px 12px;min-width:150px;pointer-events:auto}
+.econ-card .ef{font-family:var(--disp);font-size:11px;letter-spacing:.16em;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.econ-card .ef .sys{margin-left:auto;font-size:9px;color:var(--dim);letter-spacing:.1em}
+.econ-row{display:flex;justify-content:space-between;font-size:11px;line-height:1.5}
+.econ-row .lab{color:var(--dim)}
+.econ-row .val{color:var(--ink)}
+.econ-row .inc{color:#7fe3a0;font-size:9px;margin-left:6px}
+.econ-collect{margin-top:7px;width:100%;padding:6px;background:var(--amber);color:#1a1200;border:none;border-radius:3px;font-weight:700;letter-spacing:.08em;font-size:10px;cursor:pointer}
+
+/* admin overlay */
+#adminPanel{position:absolute;top:64px;left:50%;transform:translateX(-50%);z-index:1500;width:min(720px,92vw);max-height:calc(100% - 150px);
+  background:var(--panel);backdrop-filter:blur(18px);border:1px solid var(--amber);border-radius:6px;display:none;flex-direction:column;overflow:hidden}
+#adminPanel.open{display:flex}
+#adminPanel .ah{padding:13px 16px;border-bottom:1px solid var(--edge);display:flex;align-items:center;gap:12px;font-family:var(--disp);letter-spacing:.2em;color:var(--amber)}
+#adminPanel .ab{overflow-y:auto;padding:14px 16px}
+.utable{width:100%;border-collapse:collapse;font-size:12px}
+.utable th{text-align:left;font-size:9px;letter-spacing:.16em;color:var(--dim);text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--edge)}
+.utable td{padding:6px 8px;border-bottom:1px solid rgba(96,182,255,.08)}
+.utable select{background:rgba(2,8,16,.7);border:1px solid var(--edge);color:var(--ink);font-family:var(--mono);font-size:11px;padding:3px 6px;border-radius:3px}
+.reveal-row{display:flex;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap}
+.reveal-row select,.reveal-row button{background:rgba(2,8,16,.7);border:1px solid var(--edge);color:var(--ink);font-size:11px;padding:6px 10px;border-radius:3px}
+.reveal-row button{cursor:pointer}.reveal-row button:hover{border-color:var(--amber);color:var(--amber)}
+
+@media (max-width:760px){#side{width:188px}#detail{width:84vw;max-width:320px}#titlebar .sub{display:none}#stats{flex-wrap:wrap;max-width:94vw;justify-content:center}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="hud-corner tl"></div><div class="hud-corner tr"></div><div class="hud-corner bl"></div><div class="hud-corner br"></div>
+
+<div id="titlebar">
+  <span class="mark">WAYPOINT</span>
+  <span class="sub">UNSC Stellar Cartography // ONI</span>
+  <span class="right" id="hudRight"></span>
+</div>
+
+<div id="side">
+  <div class="head">NAV DATABASE</div>
+  <div class="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input id="q" placeholder="Search known systems…" autocomplete="off"/>
+  </div>
+  <div class="toggles" id="toggles"></div>
+  <div class="list" id="list"></div>
+</div>
+
+<div id="detail">
+  <button class="dclose" onclick="closeDetail()">✕</button>
+  <div class="dhead"><div class="nm" id="dNm">—</div><div class="gridref" id="dGrid">—</div><div><span class="badge" id="dBadge">—</span></div></div>
+  <div class="dbody" id="dBody"></div>
+</div>
+
+<div id="stats"></div>
+<div id="econ"></div>
+<div id="fogTag">FOG OF WAR ACTIVE</div>
+
+<div id="adminPanel">
+  <div class="ah">ADMIN CONSOLE <button class="dclose" style="margin-left:auto;position:static" onclick="toggleAdmin()">✕</button></div>
+  <div class="ab" id="adminBody"></div>
+</div>
+
+<!-- login gate -->
+<div id="gate">
+  <div class="card">
+    <h1>WAYPOINT</h1>
+    <div class="tag">UNSC Stellar Registry — Authorized Access</div>
+    <div class="tabs"><div class="t on" id="tabLogin" onclick="setTab('login')">Sign In</div><div class="t" id="tabReg" onclick="setTab('register')">Enlist</div></div>
+    <label>Callsign</label><input id="gUser" autocomplete="username"/>
+    <label>Passcode</label><input id="gPass" type="password" autocomplete="current-password"/>
+    <div id="regFields" style="display:none">
+      <label>Faction</label>
+      <select id="gFac"><option>UNSC</option><option>Covenant</option><option>Spectator</option></select>
+    </div>
+    <button class="btn" id="gGo">Sign In</button>
+    <div class="err" id="gErr"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const FACT={UNSC:{c:'#34c6ff',label:'UNSC'},contested:{c:'#ffb13d',label:'Contested'},
+  Covenant:{c:'#b07cff',label:'Covenant'},Forerunner:{c:'#7CFF6B',label:'Forerunner'},glassed:{c:'#7c8694',label:'Glassed'}};
+function factKey(s){return s.glassed?'glassed':(FACT[s.faction]?s.faction:'UNSC');}
+const fmt=n=>{if(n==null)return'—';if(n>=1e9)return(n/1e9).toFixed(n%1e9?1:0)+'B';if(n>=1e6)return(n/1e6).toFixed(n%1e6?1:0)+'M';if(n>=1e3)return(n/1e3).toFixed(0)+'K';return''+n;};
+
+let MAP, DATA, ME, SECTOR_BY_NAME={}, byId={}, sysRoutes={};
+let layers={markers:null,labels:null,fr:null,routes:null,routeGlow:null,grid:null,sectors:null,fleets:null};
+const visible={UNSC:1,contested:1,Covenant:1,Forerunner:1,glassed:1,routes:1,labels:1,foreglow:1,fleets:1};
+
+/* ---------- auth gate ---------- */
+let tab='login';
+function setTab(t){tab=t;document.getElementById('tabLogin').classList.toggle('on',t==='login');
+  document.getElementById('tabReg').classList.toggle('on',t==='register');
+  document.getElementById('regFields').style.display=t==='register'?'block':'none';
+  document.getElementById('gGo').textContent=t==='register'?'Enlist':'Sign In';
+  document.getElementById('gErr').textContent='';}
+document.getElementById('gGo').onclick=async()=>{
+  const u=document.getElementById('gUser').value.trim(),p=document.getElementById('gPass').value;
+  const f=document.getElementById('gFac').value;
+  const path=tab==='register'?'/api/register':'/api/login';
+  const body=tab==='register'?{username:u,password:p,faction:f}:{username:u,password:p};
+  const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json();
+  if(!r.ok){document.getElementById('gErr').textContent=j.error||'failed';return;}
+  boot();
+};
+document.getElementById('gPass').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('gGo').click();});
+
+async function boot(){
+  const meR=await fetch('/api/me');const me=(await meR.json()).user;
+  if(!me){document.getElementById('gate').style.display='flex';return;}
+  document.getElementById('gate').style.display='none';
+  await loadMap();
+}
+async function loadMap(){
+  const r=await fetch('/api/map');DATA=await r.json();ME=DATA.me;
+  byId={};DATA.systems.forEach(s=>byId[s.id]=s);
+  SECTOR_BY_NAME={};(DATA.sectors||[]).forEach(x=>SECTOR_BY_NAME[x[0]]={population:x[1],metal:x[2],mineral:x[3],uranium:x[4]});
+  SHIP_BY_ID={};(DATA.ships||[]).forEach(s=>SHIP_BY_ID[s.id]=s);
+  sysRoutes={};(DATA.routes||[]).forEach(rt=>rt.systems.forEach(id=>{(sysRoutes[id]=sysRoutes[id]||[]).push({name:rt.name,color:rt.color});}));
+  if(!MAP) initMap();
+  drawAll();
+  renderHud();renderToggles();renderList();renderStats();renderEcon();
+  document.getElementById('fogTag').style.display=DATA.fog?'block':'none';
+}
+
+/* ---------- map init ---------- */
+function initMap(){
+  const W=DATA.grid.cols*DATA.grid.cell, H=DATA.grid.rows*DATA.grid.cell;
+  MAP=L.map('map',{crs:L.CRS.Simple,minZoom:-2.2,maxZoom:2,zoomControl:false,attributionControl:false,
+    zoomSnap:.25,wheelPxPerZoomLevel:90,maxBounds:[[-300,-300],[H+300,W+300]],maxBoundsViscosity:.6});
+  MAP.fitBounds([[0,0],[H,W]]);
+  buildStarfield(W,H);buildGridLayer(W,H);
+  layers.routeGlow=L.layerGroup().addTo(MAP);layers.routes=L.layerGroup().addTo(MAP);
+  layers.markers=L.layerGroup().addTo(MAP);layers.fr=L.layerGroup().addTo(MAP);
+  layers.labels=L.layerGroup().addTo(MAP);layers.sectors=L.layerGroup().addTo(MAP);
+  layers.fleets=L.layerGroup().addTo(MAP);
+}
+function buildStarfield(W,H){
+  const SL=L.Layer.extend({
+    initialize(d,c,sz,al){this.d=d;this.c=c;this.sz=sz;this.al=al;this.s=[];},
+    onAdd(m){this._m=m;const cv=this._cv=L.DomUtil.create('canvas','');cv.style.position='absolute';cv.style.pointerEvents='none';
+      m.getPanes().mapPane.appendChild(cv);let seed=(this.d*99991)%233280;const rnd=()=>{seed=(seed*9301+49297)%233280;return seed/233280;};
+      for(let i=0;i<this.c;i++)this.s.push({x:rnd()*W*1.5-W*.25,y:rnd()*H*1.5-H*.25,r:this.sz*(.5+rnd()),tw:rnd()*6.28});
+      m.on('zoomend viewreset move',this._r,this);this._r();this._tick();},
+    onRemove(m){m.off('zoomend viewreset move',this._r,this);L.DomUtil.remove(this._cv);cancelAnimationFrame(this._raf);},
+    _r(){const m=this._m,sz=m.getSize(),tl=m.containerPointToLayerPoint([0,0]);L.DomUtil.setPosition(this._cv,tl);this._cv.width=sz.x;this._cv.height=sz.y;this._tl=tl;},
+    _tick(){const m=this._m;if(!m)return;const ctx=this._cv.getContext('2d'),sz=m.getSize();ctx.clearRect(0,0,sz.x,sz.y);
+      const ctr=m.getCenter(),px=ctr.lng-W/2,py=ctr.lat-H/2,t=performance.now()/1000;
+      for(const st of this.s){const lx=st.x-px*(1-this.d)*.6,ly=st.y-py*(1-this.d)*.6;const p=m.latLngToLayerPoint([ly,lx]).subtract(this._tl);
+        if(p.x<-20||p.x>sz.x+20||p.y<-20||p.y>sz.y+20)continue;ctx.globalAlpha=this.al*(.55+.45*Math.sin(t*1.5+st.tw));ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(p.x,p.y,st.r,0,6.283);ctx.fill();}
+      ctx.globalAlpha=1;this._raf=requestAnimationFrame(()=>this._tick());}
+  });
+  new SL(0.15,360,0.7,0.5).addTo(MAP);new SL(0.45,200,1.0,0.7).addTo(MAP);new SL(0.85,80,1.5,0.95).addTo(MAP);
+}
+function buildGridLayer(W,H){
+  const GL=L.Layer.extend({
+    onAdd(m){const cv=this._cv=L.DomUtil.create('canvas','');cv.style.position='absolute';cv.style.pointerEvents='none';cv.style.zIndex=190;
+      m.getPanes().tilePane.appendChild(cv);this._m=m;m.on('zoomend viewreset move',this._d,this);this._d();},
+    onRemove(m){m.off('zoomend viewreset move',this._d,this);L.DomUtil.remove(this._cv);},
+    _d(){const m=this._m,sz=m.getSize(),tl=m.containerPointToLayerPoint([0,0]);L.DomUtil.setPosition(this._cv,tl);this._cv.width=sz.x;this._cv.height=sz.y;
+      const ctx=this._cv.getContext('2d');ctx.clearRect(0,0,sz.x,sz.y);ctx.strokeStyle='rgba(96,182,255,.07)';ctx.lineWidth=1;
+      const cell=DATA.grid.cell;
+      for(let c=0;c<=DATA.grid.cols;c++){const a=m.latLngToLayerPoint([0,c*cell]).subtract(tl),b=m.latLngToLayerPoint([H,c*cell]).subtract(tl);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+      for(let rr=0;rr<=DATA.grid.rows;rr++){const a=m.latLngToLayerPoint([rr*cell,0]).subtract(tl),b=m.latLngToLayerPoint([rr*cell,W]).subtract(tl);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+    }
+  });
+  new GL().addTo(MAP);
+  // grid letters/numbers + sector labels via markers
+  const cell=DATA.grid.cell;
+  for(let c=0;c<DATA.grid.cols;c++){
+    L.marker([(-0.4)*cell,(c+0.5)*cell],{icon:L.divIcon({className:'',html:`<div class="grid-letter">${String.fromCharCode(65+c)}</div>`,iconSize:[0,0]}),interactive:false}).addTo(MAP);
+  }
+  for(let r=0;r<DATA.grid.rows;r++){
+    L.marker([(r+0.5)*cell,(-0.4)*cell],{icon:L.divIcon({className:'',html:`<div class="grid-letter">${r+1}</div>`,iconSize:[0,0]}),interactive:false}).addTo(MAP);
+  }
+}
+
+/* ---------- draw systems ---------- */
+const TIER={fortress:1.0,inner:.8,outer:.62,ring:.85,shield:.8,megastructure:1.0};
+function radiusFor(s){return (TIER[s.colonytier]||.6)*9*(0.55+0.75*(s.z||0.6));}
+function drawAll(){
+  ['markers','labels','fr','routes','routeGlow','sectors','fleets'].forEach(k=>layers[k]&&layers[k].clearLayers());
+  // sector labels
+  const cell=DATA.grid.cell;
+  Object.entries(DATA.sectorRegions||{}).forEach(([name,info])=>{
+    const[cl,rw]=info.label;const c=cl.charCodeAt(0)-65;
+    const col=info.band==='core'?'#ffd9a8':info.band==='inner'?'#ffe1b0':info.band==='frontier'?'#cfe2ff':'#ffffff';
+    L.marker([(rw-0.5)*cell,(c+0.5)*cell],{icon:L.divIcon({className:'',html:`<div class="sector-label" style="color:${col};opacity:${info.band==='core'||info.band==='inner'?.85:.7};font-size:${info.band==='core'?13:15}px">${name}</div>`,iconSize:[0,0]}),interactive:false}).addTo(layers.sectors);
+  });
+  // routes
+  if(visible.routes)(DATA.routes||[]).forEach(rt=>{
+    const pts=rt.systems.map(id=>byId[id]).filter(Boolean).map(s=>[s.coords[1],s.coords[0]]);if(pts.length<2)return;
+    L.polyline(pts,{color:rt.color,weight:7,opacity:.10}).addTo(layers.routeGlow);
+    L.polyline(pts,{color:rt.color,weight:1.6,opacity:.7,dashArray:'2 7',lineCap:'round'}).addTo(layers.routes);
+  });
+  // markers (sorted by depth)
+  const sorted=[...DATA.systems].sort((a,b)=>(a.z||0)-(b.z||0));
+  sorted.forEach(s=>{
+    const k=factKey(s);if(!visible[k])return;
+    const col=FACT[k].c,ll=[s.coords[1],s.coords[0]],r=radiusFor(s);
+    L.circleMarker(ll,{radius:r*1.9,stroke:false,fillColor:col,fillOpacity:0.06*(s.z||.6)}).addTo(layers.markers);
+    const m=L.circleMarker(ll,{radius:r,color:'#04070d',weight:1.2,fillColor:col,fillOpacity:.92});
+    m.on('click',()=>openDetail(s.id));m.addTo(layers.markers);
+    if(s.forerunner&&visible.foreglow)L.circleMarker(ll,{radius:r*1.5,color:FACT.Forerunner.c,weight:1.4,fillOpacity:0,opacity:.85,className:'fr-ring'}).addTo(layers.fr);
+    if(visible.labels)L.marker(ll,{icon:L.divIcon({className:'',html:`<div class="sys-label${s.glassed?' glassed-label':''}">${s.name.replace(/\s*\(.*\)/,'')}</div>`,iconSize:[0,0],iconAnchor:[-(r+4),6]}),interactive:false}).addTo(layers.labels);
+  });
+  // fleets — faction-colored chevrons, offset above-right of their system
+  if(visible.fleets)(DATA.fleets||[]).forEach(f=>{
+    if(!f.coords)return;
+    const col=FACT[f.faction]?FACT[f.faction].c:'#fff';
+    const ll=[f.coords[1]+22,f.coords[0]+22];
+    const html=`<div class="fleet-marker" style="--fc:${col}" title="${f.name}">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2 L22 20 L12 15 L2 20 Z" fill="${col}" stroke="#04070d" stroke-width="1.2"/></svg>
+      <span class="fleet-str">${f.strength}</span></div>`;
+    const mk=L.marker(ll,{icon:L.divIcon({className:'',html,iconSize:[22,22],iconAnchor:[11,11]})});
+    mk.on('click',()=>openFleet(f.id));mk.addTo(layers.fleets);
+  });
+}
+const stEl=document.createElement('style');
+stEl.textContent='.fr-ring{animation:frpulse 2.6s ease-in-out infinite}@keyframes frpulse{0%,100%{opacity:.25}50%{opacity:.9}}';
+document.head.appendChild(stEl);
+
+/* ---------- hud / toggles / list / stats ---------- */
+function renderHud(){
+  const el=document.getElementById('hudRight');el.innerHTML='';
+  const fk=ME?ME.faction:'UNSC';const col=FACT[fk]?FACT[fk].c:'#34c6ff';
+  const fac=document.createElement('span');fac.className='chip fac';fac.style.setProperty('--accent',col);
+  fac.textContent=(ME?ME.faction:'—')+' // '+(ME?ME.username:'');el.appendChild(fac);
+  if(ME&&ME.role==='admin'){const a=document.createElement('span');a.className='chip btn';a.style.borderColor='var(--amber)';a.style.color='var(--amber)';a.textContent='ADMIN';a.onclick=openAdmin;el.appendChild(a);}
+  const o=document.createElement('span');o.className='chip btn';o.textContent='SIGN OUT';o.onclick=async()=>{await fetch('/api/logout',{method:'POST'});location.reload();};el.appendChild(o);
+}
+function counts(){const c={};DATA.systems.forEach(s=>{const k=factKey(s);c[k]=(c[k]||0)+1;});return c;}
+function renderToggles(){
+  const w=document.getElementById('toggles');w.innerHTML='';const C=counts();
+  [['UNSC','UNSC'],['contested','Contested'],['Covenant','Covenant'],['Forerunner','Forerunner'],['glassed','Glassed']].forEach(([k,lab])=>{
+    if(!C[k])return;const el=document.createElement('div');el.className='tg'+(visible[k]?'':' off');
+    el.innerHTML=`<span class="sw" style="background:${FACT[k].c};color:${FACT[k].c}"></span>${lab}<span class="ct">${C[k]||0}</span>`;
+    el.onclick=()=>{visible[k]=!visible[k];el.classList.toggle('off',!visible[k]);drawAll();};w.appendChild(el);});
+  [['routes','Slipspace Routes','line','#34c6ff'],['labels','System Labels','sw','#9fb6d6'],['foreglow','Forerunner Glow','sw','#7CFF6B'],['fleets','Fleets','sw','#ffffff']].forEach(([k,lab,type,col])=>{
+    const el=document.createElement('div');el.className='tg'+(visible[k]?'':' off');
+    el.innerHTML=`<span class="sw ${type==='line'?'line':''}" style="background:${col};color:${col}"></span>${lab}`;
+    el.onclick=()=>{visible[k]=!visible[k];el.classList.toggle('off',!visible[k]);drawAll();};w.appendChild(el);});
+}
+function renderList(filter=''){
+  const f=filter.toLowerCase(),el=document.getElementById('list');el.innerHTML='';
+  DATA.systems.filter(s=>!f||s.name.toLowerCase().includes(f)||(s.grid||'').toLowerCase().includes(f))
+    .sort((a,b)=>a.name.localeCompare(b.name)).forEach(s=>{
+    const k=factKey(s);const row=document.createElement('div');row.className='row';
+    row.innerHTML=`<span class="dot" style="background:${FACT[k].c};color:${FACT[k].c}"></span><span class="nm">${s.name}</span><span class="tag">${s.grid||''}</span>`;
+    row.onclick=()=>{openDetail(s.id);MAP.flyTo([s.coords[1],s.coords[0]],1,{duration:.8});};el.appendChild(row);});
+}
+document.getElementById('q').addEventListener('input',e=>renderList(e.target.value));
+function renderStats(){
+  const el=document.getElementById('stats');el.innerHTML='';const C=counts();
+  [['UNSC','UNSC'],['Covenant','Covenant'],['Forerunner','Forerunner'],['glassed','Glassed']].forEach(([k,lab])=>{
+    if(!C[k])return;const d=document.createElement('div');d.className='stat';
+    d.innerHTML=`<span class="dot" style="background:${FACT[k].c};color:${FACT[k].c}"></span><span class="n" style="color:${FACT[k].c}">${C[k]}</span><span class="l">${lab}</span>`;el.appendChild(d);});
+  const known=document.createElement('div');known.className='stat';
+  known.innerHTML=`<span class="l">KNOWN</span><span class="n">${DATA.systems.length}</span><span class="l">/ ${DATA.total}</span>`;el.appendChild(known);
+}
+function fmtR(n){return (n>=1000)?(n/1000).toFixed(1)+'k':(''+n);}
+function renderEcon(){
+  const el=document.getElementById('econ');el.innerHTML='';
+  const econ=DATA.economy||[];
+  const isAdmin=ME&&ME.role==='admin';
+  econ.forEach(e=>{
+    const col=FACT[e.faction]?FACT[e.faction].c:'#fff';
+    const c=document.createElement('div');c.className='econ-card';c.style.setProperty('--accent',col);
+    c.innerHTML=`<div class="ef">${e.faction}<span class="sys">${e.systems} systems</span></div>
+      <div class="econ-row"><span class="lab">Metal</span><span class="val">${fmtR(e.treasury.metal)}<span class="inc">+${fmtR(e.income.metal)}</span></span></div>
+      <div class="econ-row"><span class="lab">Minerals</span><span class="val">${fmtR(e.treasury.mineral)}<span class="inc">+${fmtR(e.income.mineral)}</span></span></div>
+      <div class="econ-row"><span class="lab">Uranium</span><span class="val">${fmtR(e.treasury.uranium)}<span class="inc">+${fmtR(e.income.uranium)}</span></span></div>`;
+    el.appendChild(c);
+  });
+  if(isAdmin&&econ.length){
+    const btn=document.createElement('button');btn.className='econ-collect';btn.textContent='⛏ COLLECT INCOME (end turn)';
+    btn.style.cssText+=';position:relative;pointer-events:auto';
+    btn.onclick=collectIncome;
+    // attach under the first card row
+    const wrap=document.createElement('div');wrap.style.cssText='display:flex;flex-direction:column;justify-content:flex-end;pointer-events:auto';
+    wrap.appendChild(btn);el.appendChild(wrap);
+  }
+}
+async function collectIncome(){
+  if(!confirm('Collect income for ALL factions? This adds each faction\'s income to its treasury.'))return;
+  const r=await fetch('/api/admin/economy/collect',{method:'POST'});const j=await r.json();
+  await loadMap();
+  if(j.result){alert('Income collected:\n'+j.result.map(x=>`${x.faction}: +${x.added.metal} metal, +${x.added.mineral} min, +${x.added.uranium} U`).join('\n'));}
+}
+
+/* ---------- detail panel ---------- */
+function openDetail(id){
+  const s=byId[id];if(!s)return;const k=factKey(s),col=FACT[k].c;
+  const d=document.getElementById('detail');d.style.setProperty('--accent',col);
+  document.getElementById('dNm').textContent=s.name;
+  document.getElementById('dGrid').textContent='GRID '+(s.grid||'—')+(s.region?(' · '+s.region):'');
+  document.getElementById('dBadge').textContent=s.glassed?'GLASSED':(FACT[k].label);
+  let html=`<div class="grid2">
+    <div class="kv"><span class="k">Region</span><span class="v">${s.region||'—'}</span></div>
+    <div class="kv"><span class="k">Population</span><span class="v">${s.population!=null?fmt(s.population):(s.faction==='Covenant'?'Classified':'—')}</span></div>
+    <div class="kv"><span class="k">Colony Tier</span><span class="v">${(s.colonytier||'—').replace(/^\w/,c=>c.toUpperCase())}</span></div>
+    <div class="kv"><span class="k">Glassing</span><span class="v">${s.glassed?((s.glassing!=null?s.glassing:100)+'%'):'0%'}</span></div>
+    <div class="kv"><span class="k">Gravity</span><span class="v">${s.gravity||'—'}</span></div>
+    <div class="kv"><span class="k">Atmosphere</span><span class="v">${s.atmosphere||'—'}</span></div>
+  </div>`;
+  const ind=s.industry||0,pct=Math.round(ind/10*100);
+  html+=`<div class="section-t">Planetary Output</div><div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:11px"><span>Industrial Capacity</span><b>${ind}/10</b></div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+  if(s.sector&&SECTOR_BY_NAME[s.sector]){const sec=SECTOR_BY_NAME[s.sector];
+    html+=`<div class="section-t">Sector — ${s.sector}</div><div class="grid2">
+      <div class="kv"><span class="k">Sector Pop.</span><span class="v">${fmt(sec.population)}</span></div>
+      <div class="kv"><span class="k">Metal</span><span class="v">${sec.metal.toLocaleString()}</span></div>
+      <div class="kv"><span class="k">Minerals</span><span class="v">${sec.mineral.toLocaleString()}</span></div>
+      <div class="kv"><span class="k">Uranium</span><span class="v">${sec.uranium.toLocaleString()}</span></div></div>`;}
+  const rs=sysRoutes[s.id]||[];
+  if(rs.length){html+=`<div class="section-t">Slipspace Corridors</div><div style="display:flex;flex-direction:column;gap:6px">`;
+    rs.forEach(r=>html+=`<div style="display:flex;align-items:center;gap:8px;font-size:11px"><span style="width:16px;height:3px;background:${r.color};border-radius:2px"></span>${r.name}</div>`);html+=`</div>`;}
+  html+=`<div class="section-t">Intel</div><div class="notes">${s.notes||'No additional records.'}</div>`;
+  if(ME&&ME.role==='admin')html+=adminEditForm(s);
+  document.getElementById('dBody').innerHTML=html;
+  d.classList.add('open');
+}
+function closeDetail(){document.getElementById('detail').classList.remove('open');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail();});
+
+/* ---------- fleet panel ---------- */
+let SHIP_BY_ID={};
+function openFleet(id){
+  const f=(DATA.fleets||[]).find(x=>x.id===id);if(!f)return;
+  const col=FACT[f.faction]?FACT[f.faction].c:'#fff';
+  const d=document.getElementById('detail');d.style.setProperty('--accent',col);
+  document.getElementById('dNm').textContent=f.name;
+  const sys=byId[f.system];
+  document.getElementById('dGrid').textContent='FLEET'+(sys?(' · '+sys.name+' ('+(sys.grid||'')+')'):' · in transit');
+  document.getElementById('dBadge').textContent=f.faction+' FLEET';
+  let html=`<div class="grid2">
+    <div class="kv"><span class="k">Faction</span><span class="v">${f.faction}</span></div>
+    <div class="kv"><span class="k">Commander</span><span class="v">${f.owner||'—'}</span></div>
+    <div class="kv"><span class="k">Combat Strength</span><span class="v">${f.strength}</span></div>
+    <div class="kv"><span class="k">Total Ships</span><span class="v">${f.ships}</span></div>
+  </div>`;
+  html+=`<div class="section-t">Composition</div><div style="display:flex;flex-direction:column;gap:6px">`;
+  const entries=Object.entries(f.composition||{});
+  if(!entries.length)html+=`<div style="font-size:11px;color:var(--dim)">No ships assigned.</div>`;
+  entries.forEach(([sid,n])=>{const sh=SHIP_BY_ID[sid];
+    html+=`<div style="display:flex;align-items:center;gap:8px;font-size:11px">
+      <span style="background:${col};color:#04070d;border-radius:4px;padding:0 6px;font-weight:700">${n}×</span>
+      <span>${sh?sh.name:sid}</span>
+      <span style="margin-left:auto;color:var(--dim)">${sh?('str '+sh.strength):''}</span></div>`;});
+  html+=`</div>`;
+  if(f.notes)html+=`<div class="section-t">Orders</div><div class="notes">${f.notes}</div>`;
+  if(ME&&ME.role==='admin')html+=fleetAdminForm(f);
+  document.getElementById('dBody').innerHTML=html;
+  d.classList.add('open');
+}
+function fleetAdminForm(f){
+  const sysOpts=DATA.systems.slice().sort((a,b)=>a.name.localeCompare(b.name))
+    .map(s=>`<option value="${s.id}" ${s.id===f.system?'selected':''}>${s.name} (${s.grid||''})</option>`).join('');
+  return `<div class="admin-edit"><div class="section-t" style="color:var(--amber)">Admin — Move Fleet</div>
+    <label>Relocate to system</label>
+    <select id="flMove">${sysOpts}</select>
+    <button class="save" onclick="moveFleet('${f.id}')">Move Fleet</button>
+    <div class="reveal-row" style="margin-top:10px"><button onclick="openAdmin('fleets')">Open Fleet Manager</button>
+    <button onclick="deleteFleet('${f.id}')" style="border-color:#ff7a6b;color:#ff7a6b">Delete</button></div></div>`;
+}
+async function moveFleet(id){const sys=document.getElementById('flMove').value;
+  await fetch('/api/admin/fleet/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,system:sys})});
+  await loadMap();openFleet(id);}
+async function deleteFleet(id){if(!confirm('Delete this fleet?'))return;
+  await fetch('/api/admin/fleet/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  closeDetail();await loadMap();}
+
+/* ---------- admin ---------- */
+function adminEditForm(s){
+  return `<div class="admin-edit"><div class="section-t" style="color:var(--amber)">Admin — Edit System</div>
+    <label>Controlling Faction</label>
+    <select id="aeFac">${['UNSC','Covenant','contested','Forerunner'].map(f=>`<option ${s.faction===f?'selected':''}>${f}</option>`).join('')}</select>
+    <label>Glassed</label><select id="aeGlass"><option value="0" ${!s.glassed?'selected':''}>No</option><option value="1" ${s.glassed?'selected':''}>Yes</option></select>
+    <label>Glassing %</label><input id="aeGpct" type="number" value="${s.glassing||0}"/>
+    <label>Population</label><input id="aePop" type="number" value="${s.population||0}"/>
+    <label>Notes</label><input id="aeNotes" value="${(s.notes||'').replace(/"/g,'&quot;')}"/>
+    <button class="save" onclick="saveSystem('${s.id}')">Save Changes</button>
+    <div class="reveal-row" style="margin-top:12px">
+      <select id="aeRevFac"><option>UNSC</option><option>Covenant</option></select>
+      <button onclick="revealOne('${s.id}')">Reveal to faction</button>
+      <button onclick="hideOne('${s.id}')">Hide</button>
+    </div></div>`;
+}
+async function saveSystem(id){
+  const body={systemId:id,faction:document.getElementById('aeFac').value,
+    glassed:document.getElementById('aeGlass').value==='1',
+    glassing:Number(document.getElementById('aeGpct').value),
+    population:Number(document.getElementById('aePop').value),
+    notes:document.getElementById('aeNotes').value};
+  await fetch('/api/admin/system',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  await loadMap();openDetail(id);
+}
+async function revealOne(id){const f=document.getElementById('aeRevFac').value;
+  await fetch('/api/admin/reveal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({faction:f,systemId:id})});alert('Revealed to '+f);}
+async function hideOne(id){const f=document.getElementById('aeRevFac').value;
+  await fetch('/api/admin/hide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({faction:f,systemId:id})});alert('Hidden from '+f);}
+
+let adminOpen=false;
+function toggleAdmin(){adminOpen=!adminOpen;document.getElementById('adminPanel').classList.toggle('open',adminOpen);}
+async function openAdmin(section){
+  if(typeof section!=='string')section='main';
+  if(!adminOpen)toggleAdmin();
+  if(!adminOpen)return;
+  const b=document.getElementById('adminBody');
+  if(section==='fleets'){
+    const r=await fetch('/api/admin/fleets');const j=await r.json();
+    let html=`<div class="section-t" style="color:var(--amber)">Fleet Manager (${j.fleets.length})</div>
+      <button class="reveal-row" style="border:1px solid var(--amber);color:var(--amber);background:none;padding:7px 12px;border-radius:3px;cursor:pointer" onclick="newFleet()">+ New Fleet</button>
+      <table class="utable" style="margin-top:10px"><tr><th>Fleet</th><th>Faction</th><th>Location</th><th>Strength</th><th></th></tr>`;
+    j.fleets.forEach(f=>{const sys=byId[f.system];
+      html+=`<tr><td>${f.name}</td><td>${f.faction}</td><td>${sys?sys.name:'—'}</td><td>${f.strength}</td>
+        <td><button onclick="openFleet('${f.id}')" style="background:none;border:1px solid var(--edge);color:var(--ink);font-size:10px;padding:3px 7px;border-radius:3px;cursor:pointer">View</button></td></tr>`;});
+    html+=`</table><div style="font-size:10px;color:var(--dim);margin-top:10px">Click View to move a fleet or edit it from its panel. Ship roster is in <b>app/data/ships.json</b> — swap in your spreadsheet data there.</div>`;
+    b.innerHTML=html;return;
+  }
+  const r=await fetch('/api/admin/all');const j=await r.json();
+  let html=`<div class="reveal-row"><button onclick="openAdmin('fleets')" style="border-color:var(--amber);color:var(--amber)">⚓ Fleet Manager</button></div>
+    <div class="section-t" style="color:var(--amber)">Economy</div>
+    <div id="econAdmin"></div>
+    <div class="reveal-row">
+      <select id="ecoFac"><option>UNSC</option><option>Covenant</option></select>
+      <select id="ecoRes"><option value="metal">Metal</option><option value="mineral">Minerals</option><option value="uranium">Uranium</option></select>
+      <input id="ecoAmt" type="number" placeholder="amount" style="width:90px;background:rgba(2,8,16,.7);border:1px solid var(--edge);color:var(--ink);font-size:11px;padding:6px 8px;border-radius:3px"/>
+      <button onclick="ecoAdjust('delta')">Add/Subtract</button>
+      <button onclick="ecoAdjust('set')">Set</button>
+    </div>
+    <div class="section-t" style="color:var(--amber)">Bulk Discovery</div>
+    <div class="reveal-row">
+      <select id="bulkFac"><option>UNSC</option><option>Covenant</option></select>
+      <button onclick="bulk('reveal',true)">Reveal ALL to faction</button>
+      <button onclick="bulk('hide',true)">Hide ALL from faction</button>
+    </div>
+    <div class="section-t" style="color:var(--amber);margin-top:16px">Players (${j.users.length})</div>
+    <table class="utable"><tr><th>Callsign</th><th>Faction</th><th>Role</th></tr>`;
+  j.users.forEach(u=>{html+=`<tr><td>${u.username}</td>
+    <td><select onchange="setUser(${u.id},'faction',this.value)">${['UNSC','Covenant','Spectator'].map(f=>`<option ${u.faction===f?'selected':''}>${f}</option>`).join('')}</select></td>
+    <td><select onchange="setUser(${u.id},'role',this.value)">${['player','admin'].map(rr=>`<option ${u.role===rr?'selected':''}>${rr}</option>`).join('')}</select></td></tr>`;});
+  html+=`</table>`;b.innerHTML=html;
+  // fill economy admin readout
+  const ea=document.getElementById('econAdmin');
+  if(ea&&DATA.economy){
+    let t='<table class="utable"><tr><th>Faction</th><th>Systems</th><th>Treasury (M/Min/U)</th><th>Income</th></tr>';
+    DATA.economy.forEach(e=>{t+=`<tr><td>${e.faction}</td><td>${e.systems}</td>
+      <td>${fmtR(e.treasury.metal)} / ${fmtR(e.treasury.mineral)} / ${fmtR(e.treasury.uranium)}</td>
+      <td style="color:#7fe3a0">+${fmtR(e.income.metal)} / +${fmtR(e.income.mineral)} / +${fmtR(e.income.uranium)}</td></tr>`;});
+    t+='</table><button class="econ-collect" style="margin-top:8px;position:relative" onclick="collectIncome()">⛏ COLLECT INCOME (end turn)</button>';
+    ea.innerHTML=t;
+  }
+}
+async function ecoAdjust(mode){
+  const faction=document.getElementById('ecoFac').value;
+  const res=document.getElementById('ecoRes').value;
+  const amt=Number(document.getElementById('ecoAmt').value);
+  if(isNaN(amt)){alert('Enter an amount');return;}
+  const body={faction,mode};body[res]=amt;
+  await fetch('/api/admin/economy/adjust',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  await loadMap();openAdmin('main');
+}
+async function newFleet(){
+  const name=prompt('Fleet name?','New Battlegroup');if(!name)return;
+  const faction=prompt('Faction? (UNSC / Covenant)','UNSC')||'UNSC';
+  const r=await fetch('/api/admin/fleet',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,faction,system:'sol',composition:{}})});
+  await loadMap();openAdmin('fleets');
+}
+async function bulk(kind,all){const f=document.getElementById('bulkFac').value;
+  await fetch('/api/admin/'+kind,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({faction:f,all})});alert(kind+' all for '+f);}
+async function setUser(userId,key,val){const body={userId};body[key]=val;
+  await fetch('/api/admin/user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
+
+boot();
+</script>
+</body>
+</html>
