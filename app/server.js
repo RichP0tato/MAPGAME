@@ -32,7 +32,7 @@ function fleetShipCount(comp){
 }
 
 // ---------- database ----------
-const db = new Database(join(__dirname, 'data', 'game.db'));
+const db = new Database(join(process.env.DB_DIR || join(__dirname, 'data'), 'game.db'));
 db.pragma('journal_mode = WAL');
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
